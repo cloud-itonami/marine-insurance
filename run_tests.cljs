@@ -1,0 +1,36 @@
+#!/usr/bin/env nbb
+;; run_tests.cljs — marine-insurance actor の検査。
+;;
+;;   nbb --classpath src:test run_tests.cljs             gate + descriptor + 文書（network 不要）
+;;   nbb --classpath src:test run_tests.cljs --network   名乗りを実際に解決しに行く
+;;
+;; この repo は 2026-05 の snapshot 以来、**走るテストを 1 本も持っていなかった。**
+;; `actor-manifest.test.ts` は在るが `package.json` も vitest も無いので実行できず、
+;; その結果 `pipelines` を 8 と主張したまま実体が 10 になっても誰も気づかなかった。
+;; **走らないテストは、テストが無いより悪い** —— 在ることが検査済みに見える。
+;;
+;; workspace の規則（superproject CLAUDE.md）で script host は nbb に一本化されて
+;; おり、新規の .ts / .mjs / .sh は禁止。よって runner は nbb + cljs.test である。
+(ns run-tests
+  (:require [clojure.test :as t]
+            [marine_insurance.gate-test]
+            [marine_insurance.repo-test]
+            [marine_insurance.docs-test]
+            [marine_insurance.network-test :as network]))
+
+(def green-marker
+  "scripts/maturity-loop/mutations.edn の `:green-marker`。
+   全部緑のときだけ出る —— 出力に現れるかどうかで mutation が噛んだかを判定する
+   ので、緑でないときに印字してはならない。"
+  "marine-insurance actor: all green")
+
+(defmethod t/report [:cljs.test/default :end-run-tests] [m]
+  (if (t/successful? m)
+    (println (str "\nmode: " (if network/enabled? "offline + network" "offline") "\n" green-marker))
+    (do (println "\nmarine-insurance actor: FAILED")
+        (js/process.exit 1))))
+
+(t/run-tests 'marine_insurance.gate-test
+             'marine_insurance.repo-test
+             'marine_insurance.docs-test
+             'marine_insurance.network-test)

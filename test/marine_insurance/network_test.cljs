@@ -1,0 +1,62 @@
+(ns marine_insurance.network-test
+  "`--network` のときだけ走る。`docs/identity-claims.edn` の `:measured` を
+   実際に取りに行って突き合わせる。
+
+   **緑は「健全」ではない。** この repo の identity は割れており、割れていること
+   自体が固定値である。緑は『実測が固定値と一致した』としか言っていない。"
+  (:require [clojure.test :refer [deftest is testing]]
+            [clojure.edn :as edn]
+            [marine_insurance.didweb :as didweb]
+            ["node:child_process" :as cp]
+            ["node:fs" :as fs]))
+
+(def enabled?
+  (boolean (some #{"--network"} (js->clj (.slice js/process.argv 2)))))
+
+(def claims (edn/read-string (fs/readFileSync "docs/identity-claims.edn" "utf8")))
+
+(defn- http-status
+  "curl で最終ステータスだけ取る。名前が引けなければ 0（curl が 000 を返す）。"
+  [url]
+  (try
+    (-> (cp/execFileSync "curl"
+                         #js ["-sS" "-o" "/dev/null" "-m" "20" "-L"
+                              "-w" "%{http_code}" url]
+                         #js {:encoding "utf8" :stdio #js ["ignore" "pipe" "ignore"]})
+        str js/parseInt)
+    (catch :default _ 0)))
+
+(deftest each-identity-resolves-exactly-as-recorded
+  (when enabled?
+    (doseq [{:keys [did measured resolves?]} (:identities claims)]
+      (let [url (didweb/did->url did)          ; 手書きせず規則から導く
+            got (http-status url)]
+        (is (= (:http-status measured) got)
+            (str did " -> " url " : 固定 " (:http-status measured) " / 実測 " got))
+        (is (= resolves? (= 200 got))
+            (str did " の :resolves? が実測と食い違う"))))))
+
+(deftest each-recorded-surface-still-answers-the-same-way
+  (when enabled?
+    (doseq [{:keys [what url measured]} (:surfaces claims)]
+      (let [got (http-status url)]
+        (is (= (:http-status measured) got)
+            (str what " " url " : 固定 " (:http-status measured) " / 実測 " got))))))
+
+(deftest the-served-did-document-is-not-the-one-checked-in-here
+  ;; **`.well-known/did.json` を編集しても配信は変わらない。** その事実自体を測る。
+  ;; ここが緑なのは「今も食い違っている」という意味であって、良い状態ではない。
+  (when enabled?
+    (let [url (didweb/did->url (:primary-did claims))
+          body (try (str (cp/execFileSync "curl" #js ["-sS" "-m" "20" "-L" url]
+                                          #js {:encoding "utf8"
+                                               :stdio #js ["ignore" "pipe" "ignore"]}))
+                    (catch :default _ nil))
+          served (some-> body js/JSON.parse (js->clj))
+          local (js->clj (js/JSON.parse (fs/readFileSync ".well-known/did.json" "utf8")))]
+      (is (some? served) "配信文書が取れる")
+      (is (= (get served "id") (get local "id")) "id だけは一致している")
+      (is (not= (get served "service") (get local "service"))
+          "service の顔ぶれは食い違ったまま")
+      (is (empty? (get served "alsoKnownAs"))
+          "配信側の alsoKnownAs は空（手元は 4 件を名乗る）"))))

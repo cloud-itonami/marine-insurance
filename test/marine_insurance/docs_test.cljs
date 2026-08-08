@@ -1,0 +1,148 @@
+(ns marine_insurance.docs-test
+  "**この repo の散文そのものを検査対象にする。**
+
+   README と operator-quickstart は『実体はこうなっている』と数と手順で主張する。
+   散文は黙って腐る —— 実体が動いても文字は動かない。だから主張を実体と
+   突き合わせ、**踏めない手順を書けないようにする**。
+
+   ここが赤くなったら、多くの場合バグではなく『文書が実体から離れた』である。"
+  (:require [clojure.test :refer [deftest is testing]]
+            [clojure.edn :as edn]
+            [clojure.string :as str]
+            [marine_insurance.murakumo :as mk]
+            ["node:fs" :as fs]))
+
+(def readme (fs/readFileSync "README.md" "utf8"))
+(def quickstart (fs/readFileSync "docs/operator-quickstart.md" "utf8"))
+(def runner (fs/readFileSync "run_tests.cljs" "utf8"))
+(def claims (edn/read-string (fs/readFileSync "docs/identity-claims.edn" "utf8")))
+(def census (:census claims))
+(def manifest (js->clj (js/JSON.parse (fs/readFileSync "actor-manifest.jsonld" "utf8"))))
+
+(defn- exists? [p] (fs/existsSync p))
+
+(defn- rel-links
+  "markdown の [text](target) から、外部 URL と純アンカーを除いた相対パス。"
+  [md]
+  (->> (re-seq #"\[[^\]]*\]\(([^)]+)\)" md)
+       (map second)
+       (remove #(re-find #"^(https?:|mailto:|#)" %))
+       (map #(first (str/split % #"#")))
+       (remove str/blank?)
+       distinct))
+
+(deftest readme-names-what-this-repo-is-in-its-opening
+  ;; 名前が機能を示さない repo は README 冒頭で名乗る（superproject CLAUDE.md）。
+  ;; `marine-insurance` は主題を言うが「実装なのか descriptor なのか」を言わない。
+  (let [head (str/join "\n" (take 8 (str/split-lines readme)))]
+    (is (str/starts-with? readme "# marine-insurance"))
+    (is (str/includes? head "descriptor") "冒頭で descriptor だと名乗る")
+    (is (re-find #"実装ではない|実行系ではない|ここには無い" head)
+        "冒頭で『実装ではない』と断る")))
+
+(defn- resolve-from
+  "`base` からの相対リンクを repo root からのパスに直す。
+   quickstart は docs/ に居るので `adr/0001.md` は `docs/adr/0001.md` を指す。"
+  [base l]
+  (if (str/starts-with? l "../")
+    (str/replace l #"^\.\./" "")
+    (str base l)))
+
+(deftest every-relative-link-in-the-docs-resolves
+  ;; 死んだリンクは「踏めない手順」の一番よくある形。
+  (doseq [l (rel-links readme)]
+    (is (exists? (resolve-from "" l)) (str "README の相対リンクが存在しない: " l)))
+  (doseq [l (rel-links quickstart)]
+    (is (exists? (resolve-from "docs/" l))
+        (str "quickstart の相対リンクが存在しない: " l))))
+
+(deftest every-repo-local-artifact-the-quickstart-names-exists
+  ;; **repo 内のパスに限る。** quickstart は意図的に「存在しないもの」にも触れる
+  ;; （`deps.edn` も `package.json` も無い、と断っている）し、superproject 側の
+  ;; `scripts/maturity-loop/run.cljs` にも触れる。実在を要求してよいのは
+  ;; `src/` `test/` `docs/` 配下の、この repo が持つべき成果物だけ。
+  (let [named (->> (re-seq #"\b(?:src|test|docs)/[A-Za-z0-9_./-]+\.(?:cljs|cljc|edn)" quickstart)
+                   distinct)]
+    (is (seq named) "quickstart が repo 内の成果物を 1 つも名指ししていない")
+    (doseq [f named]
+      (is (exists? f) (str "quickstart が名指しするファイルが無い: " f)))))
+
+(deftest every-nbb-classpath-in-the-docs-points-at-real-directories
+  ;; classpath が実体とずれていたら、書いてあるとおり打っても動かない。
+  ;; **`includes?` で 1 箇所だけ確かめても足りない** —— 別の行に正しい呼び出しが
+  ;; 残っていると、壊れた行を見逃す（実測: `src:tests` への drift が素通りした）。
+  ;; 出てくる **すべての** classpath を検査する。
+  (let [cps (->> (re-seq #"nbb --classpath (\S+)" (str readme "\n" quickstart))
+                 (map second) distinct)]
+    (is (seq cps) "docs に nbb の呼び出しが 1 つも無い")
+    (doseq [cp cps
+            entry (str/split cp #":")]
+      (is (exists? entry) (str "classpath の要素が存在しない: " entry " (in " cp ")"))))
+  (is (str/includes? quickstart "run_tests.cljs"))
+  (is (exists? "run_tests.cljs"))
+  (is (exists? "src/marine_insurance/murakumo.cljc"))
+  (is (exists? "test/marine_insurance/gate_test.cljs")))
+
+(deftest the-green-marker-in-the-docs-is-the-runner-s-marker
+  ;; 「これが出れば緑」と書いた文字列が runner の出す文字列と違ったら、
+  ;; operator は緑を確認できない。
+  (let [marker (second (re-find #"\"([^\"]*all green)\"" runner))]
+    (is (some? marker))
+    (is (str/includes? quickstart marker) "quickstart が runner の green marker を引用している")
+    (is (str/includes? readme marker) "README が runner の green marker を引用している")))
+
+(deftest the-docs-do-not-tell-the-operator-to-run-something-that-cannot-run
+  ;; `actor-manifest.test.ts` は package.json も vitest も無いので走らない。
+  ;; **走らせろと書いた瞬間、それは踏めない手順になる。**
+  (is (not (exists? "package.json")) "package.json が増えたらこの禁止自体を見直す")
+  (doseq [[label doc] [["README" readme] ["quickstart" quickstart]]]
+    (doseq [cmd ["npm test" "npm install" "npx vitest" "vitest run" "pnpm test" "yarn test"]]
+      (is (not (str/includes? doc cmd))
+          (str label " が実行できない手順を書いている: " cmd)))))
+
+(defn- numbers-adjacent-to
+  "README の中で `word` に隣接して現れる数の集合。
+   **『どこかに 10 がある』では弱すぎる** —— 別の行の正しい 10 が、書き換えられた
+   8 を隠してしまう（実測でこれが素通りした）。隣接する数を**全部**集めて、
+   実体と違うものが 1 つでも混ざっていたら赤にする。"
+  [md word]
+  (into #{}
+        (concat (map second (re-seq (re-pattern (str "(\\d+)\\s*" word)) md))
+                (map second (re-seq (re-pattern (str word "\\s*(\\d+)")) md)))))
+
+(deftest the-numbers-in-the-readme-match-the-census
+  ;; README が引用する数は実体から来ていること。片方だけ直す事故を防ぐ。
+  (doseq [[word n] [["pipeline" (:pipelines census)]
+                    ["cell" (:substrate-cells census)]
+                    ["gate" (:substrate-gates census)]]]
+    (let [found (numbers-adjacent-to readme word)]
+      (is (= #{(str n)} found)
+          (str "README の \"" word "\" に隣接する数が " (pr-str found)
+               " —— 実体は " n))))
+  (is (= (:substrate-cells census) (count mk/cell-specs)))
+  (is (= (:pipelines census) (count (get manifest "pipelines")))))
+
+(defn- mentions-token?
+  "`s` が README に **1 語として** 出てくるか。
+   `str/includes?` だと `…marine-insurance` が `…marine-insurance-x` にも当たり、
+   DID をすり替えても緑のままになる（実測）。後続文字で境界を切る。"
+  [md s]
+  (boolean (re-find (re-pattern (str (str/replace s #"([.+*?\[\]^$(){}|\\])" "\\$1")
+                                     "(?![A-Za-z0-9._-])"))
+                    md)))
+
+(deftest the-readme-carries-both-dids-and-says-which-one-resolves
+  (doseq [{:keys [did]} (:identities claims)]
+    (is (mentions-token? readme did) (str "README が " did " に触れていない")))
+  (is (re-find #"DNS|解決しない|resolve" readme)
+      "どちらが解決しないのかを README が述べている"))
+
+(deftest the-readme-does-not-claim-this-repo-runs-anything
+  ;; 「動くサービスがある」と読める語を置かない。ここには実行主体が居ない。
+  (doseq [phrase ["本番稼働" "deploy 済み" "稼働中のサービス"]]
+    (is (not (str/includes? readme phrase))
+        (str "README が実行系の存在を主張している: " phrase))))
+
+(deftest the-adr-exists-and-is-linked
+  (is (exists? "docs/adr/0001-descriptor-snapshot-not-an-executor.md"))
+  (is (str/includes? readme "docs/adr/0001-descriptor-snapshot-not-an-executor.md")))

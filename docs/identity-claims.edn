@@ -1,0 +1,96 @@
+;; identity-claims.edn — この repo が「名乗っていること」と「実際に測れたこと」を
+;; 分けて固定したもの。test の期待値であり、README の数の出どころでもある。
+;;
+;; **ここは願望ではなく実測を書く場所。** 穴（:gaps）は塞いだことにせず、
+;; 塞がったら test が赤くなって「測り直せ」と言う。
+;;
+;; :measured-at より後に外の世界が動いていれば `--network` は赤くなる。
+;; そのときは実測に合わせて :measured を更新し、**README の該当記述も直す**。
+
+{:policy "marine-insurance/identity-claims/v1"
+ :measured-at "2026-08-09"
+
+ ;; --- 名乗りは 2 つあり、食い違っている -------------------------------------
+ ;;
+ ;; did:web の解決規則（W3C did:web）:
+ ;;   did:web:HOST         -> https://HOST/.well-known/did.json
+ ;;   did:web:HOST:a:b     -> https://HOST/a/b/did.json
+ ;;
+ ;; URL は手で書かない —— 手書きすると「存在しない URL を測って 404 だと報告する」
+ ;; ことになる。test は :did から規則で導出して突き合わせる。
+ :identities
+ [{:did "did:web:marine-insurance.etzhayyim.com"
+   :claimed-by #{:actor-manifest/id :substrate/actor-did :actor-manifest-test-ts}
+   :measured {:http-status 0 :note "DNS に無い（curl: Could not resolve host）"}
+   :resolves? false}
+
+  {:did "did:web:etzhayyim.com:actor:marine-insurance"
+   :claimed-by #{:well-known/did.json}
+   :measured {:http-status 200}
+   :resolves? true}]
+
+ ;; **この repo の substrate と manifest は、解決しない方の DID を名乗っている。**
+ ;; 唯一解決する DID を名乗っているのは `.well-known/did.json` だけで、しかも
+ ;; そのファイルはここからは配信されていない（下記 :gaps）。
+ :primary-did "did:web:etzhayyim.com:actor:marine-insurance"
+
+ ;; --- 配信面 ---------------------------------------------------------------
+ :surfaces
+ [{:what :served-did-document
+   :url "https://etzhayyim.com/actor/marine-insurance/did.json"
+   :measured {:http-status 200}}
+  {:what :github-pages-mirror
+   :url "https://etzhayyim.github.io/com-etzhayyim-marine-insurance/.well-known/did.json"
+   :measured {:http-status 404}
+   :note "local did.json の alsoKnownAs が名乗る鏡。配信されていない"}
+  {:what :pds-in-local-did-json
+   :url "https://pds.etzhayyim.com"
+   :measured {:http-status 530}}
+  {:what :pds-in-served-did-json
+   :url "https://pds.aozora.app"
+   :measured {:http-status 404}}
+  {:what :actor-manifest-context
+   :url "https://etzhayyim.com/ns/actor/v1"
+   :measured {:http-status 404}
+   :note "manifest の @context。JSON-LD context として解決しない"}]
+
+ ;; --- descriptor の census（両方向に落ちる固定値） ---------------------------
+ ;; 増えても減っても赤。「いつの間にか pipeline が増えていた」を検出するため。
+ :census
+ {:pipelines 10
+  :pipelines-by-trigger {"cron" 2 "subscribeRepos" 1 "xrpc" 7}
+  :actors 6
+  :capabilities-declared 5
+  :capabilities-used 4
+  :required-collections 2
+  :required-loops 4
+  :substrate-cells 18
+  :substrate-gates 7
+  :migration-todo-unchecked 6
+  :migration-todo-checked 0}
+
+ ;; --- lexicon の割れ --------------------------------------------------------
+ ;; substrate は `com.etzhayyim.marine-insurance.*` に書き、manifest は
+ ;; `com.etzhayyim.apps.marineInsurance.*` を xrpc に使う。**交差はゼロ。**
+ ;; 揃える先は substrate 側 —— 配信されている DID document の
+ ;; `_meta.primaryLexicon` が `com.etzhayyim.marine-insurance` だからである。
+ :lexicons
+ {:substrate-prefix "com.etzhayyim.marine-insurance."
+  :manifest-prefix "com.etzhayyim.apps.marineInsurance."
+  :overlap 0
+  :authority :substrate
+  :authority-source "served did.json _meta.primaryLexicon = com.etzhayyim.marine-insurance"}
+
+ ;; --- 測ったが直していないこと ----------------------------------------------
+ ;; **塞ぐと test が赤くなる。** それは故障ではなく「固定値を測り直せ」の合図。
+ :gaps
+ [{:id :two-dids-disagree
+   :what "actor-manifest.jsonld の @id と .well-known/did.json の id が別物で、manifest 側は DNS に無い"}
+  {:id :local-did-json-is-not-the-served-one
+   :what "手元の .well-known/did.json は配信文書と中身が違う（@context の suite、alsoKnownAs、PDS endpoint、service の顔ぶれ、_meta の有無）。ここを編集しても配信は変わらない"}
+  {:id :checked-in-vitest-asserted-a-falsehood
+   :what "actor-manifest.test.ts は pipeline を 8 と主張していたが実体は 10。package.json が無く vitest も入っていないので、一度も走ったことがない"}
+  {:id :agent-invoke-is-declared-but-never-used
+   :what "capabilities に agent.invoke があるが、どの pipeline step の fn にも現れない（宣言 5 / 使用 4）"}
+  {:id :migration-codemod-untouched
+   :what "MIGRATION-TODO.md の 6 項目が全部未着手。substrate 境界の置換は一つも済んでいない"}]}
