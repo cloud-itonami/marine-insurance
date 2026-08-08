@@ -1,0 +1,125 @@
+(ns marine_insurance.repo-test
+  "descriptor 本体（`actor-manifest.jsonld` / `.well-known/did.json`）と、
+   `docs/identity-claims.edn` に固定した census の突き合わせ。
+
+   count は**両方向に**落ちる。増えても減っても赤 —— 「いつの間にか pipeline が
+   増えていた」は「減っていた」と同じくらい知りたい。"
+  (:require [clojure.test :refer [deftest is testing]]
+            [clojure.edn :as edn]
+            [clojure.string :as str]
+            [marine_insurance.murakumo :as mk]
+            [marine_insurance.didweb :as didweb]
+            ["node:fs" :as fs]))
+
+(def manifest (js->clj (js/JSON.parse (fs/readFileSync "actor-manifest.jsonld" "utf8"))))
+(def did-doc  (js->clj (js/JSON.parse (fs/readFileSync ".well-known/did.json" "utf8"))))
+(def claims   (edn/read-string (fs/readFileSync "docs/identity-claims.edn" "utf8")))
+(def census   (:census claims))
+
+(def pipelines (get manifest "pipelines"))
+(def steps (mapcat #(get % "steps") pipelines))
+
+(deftest pipeline-census-matches-the-manifest
+  (is (= (:pipelines census) (count pipelines)))
+  (is (= (:pipelines-by-trigger census)
+         (frequencies (map #(get-in % ["trigger" "type"]) pipelines)))))
+
+(deftest actor-and-collection-census-matches
+  (is (= (:actors census) (count (get manifest "actors"))))
+  (is (= (:required-collections census) (count (get manifest "requiredCollections"))))
+  (is (= (:required-loops census) (count (get manifest "requiredLoops")))))
+
+(deftest every-step-is-fully-formed
+  (doseq [s steps]
+    (is (some? (get s "id")))
+    (is (some? (get s "fn")))
+    (is (some? (get s "args")))
+    (is (not= "custom" (get s "fn")) "fn:custom は宣言の外に出る抜け道")))
+
+(deftest steps-never-call-an-undeclared-capability
+  (let [declared (set (get manifest "capabilities"))
+        used (set (map #(get % "fn") steps))]
+    (is (empty? (remove declared used))
+        (str "宣言されていない capability を呼んでいる: " (pr-str (remove declared used))))
+    (is (= (:capabilities-declared census) (count declared)))
+    (is (= (:capabilities-used census) (count used)))))
+
+(deftest the-over-granted-capability-is-still-exactly-the-one-we-recorded
+  ;; **『直った』方向にも落ちる。** agent.invoke が使われ始めたら（あるいは
+  ;; 宣言から外れたら）この test が赤くなって :gaps を測り直せと言う。
+  (let [declared (set (get manifest "capabilities"))
+        used (set (map #(get % "fn") steps))]
+    (is (= #{"agent.invoke"} (into #{} (remove used declared)))
+        "宣言されているのに一度も使われない capability の集合")))
+
+(deftest cron-expressions-have-five-fields
+  (doseq [p pipelines
+          :when (= "cron" (get-in p ["trigger" "type"]))]
+    (let [c (get-in p ["trigger" "cron"])]
+      (is (= 5 (count (str/split (str/trim c) #"\s+")))
+          (str "cron が 5 field でない: " c)))))
+
+(deftest substrate-census-matches
+  (is (= (:substrate-cells census) (count mk/cell-specs)))
+  (is (= (:substrate-gates census) (count mk/common-gates)))
+  (is (= (count mk/common-gates) (count (set mk/common-gates))) "gate に重複が無い"))
+
+(deftest the-two-identities-still-disagree
+  ;; これは「健全」の主張ではない。**割れていること自体を固定している。**
+  ;; 揃ったらこの test が赤くなり、identity-claims.edn を測り直せと言う。
+  (let [manifest-did (get manifest "@id")
+        doc-did (get did-doc "id")
+        recorded (set (map :did (:identities claims)))]
+    (is (not= manifest-did doc-did) "2 つの名乗りは今も食い違っている")
+    (is (= recorded #{manifest-did doc-did})
+        "identity-claims.edn が実体の 2 つをちょうど記録している")
+    (is (= doc-did (:primary-did claims))
+        "唯一解決する DID を primary としている")))
+
+(deftest the-substrate-names-the-did-that-does-not-resolve
+  ;; substrate・manifest・vitest の 3 つが揃って「解決しない方」を名乗っている。
+  ;; 片側だけ直す修正は「揃えた」ように見えて割れを隠すので、ここで固定する。
+  (let [non-resolving (->> (:identities claims) (remove :resolves?) first :did)]
+    (is (= non-resolving mk/actor-did))
+    (is (= non-resolving (get manifest "@id")))))
+
+(deftest did-service-ids-are-fragments-of-this-did
+  (let [doc-did (get did-doc "id")]
+    (doseq [s (get did-doc "service")]
+      (is (str/starts-with? (get s "id") (str doc-did "#"))
+          (str "service id が自分の DID の fragment でない: " (get s "id"))))))
+
+(deftest recorded-urls-are-derivable-from-the-dids-they-claim-to-measure
+  ;; 手書き URL を測ると、実測しているつもりで自分の打ち間違いを測る。
+  (doseq [{:keys [did]} (:identities claims)]
+    (is (some? (didweb/did->url did)) (str did " が did:web として解けない")))
+  (let [served (->> (:surfaces claims) (filter #(= :served-did-document (:what %))) first)]
+    (is (= (didweb/did->url (:primary-did claims)) (:url served))
+        "配信面の URL は primary DID から規則で導ける")))
+
+(deftest the-lexicon-split-is-still-total
+  (let [sub-prefix (get-in claims [:lexicons :substrate-prefix])
+        man-prefix (get-in claims [:lexicons :manifest-prefix])
+        sub-colls (set (mapcat :collections (vals mk/cell-specs)))
+        man-nsids (set (keep #(get-in % ["trigger" "nsid"]) pipelines))]
+    (is (every? #(str/starts-with? % sub-prefix) sub-colls))
+    (is (seq man-nsids))
+    (is (= 0 (get-in claims [:lexicons :overlap])))
+    (is (empty? (filter sub-colls man-nsids)) "substrate と manifest の名前空間は交差しない")
+    (is (some #(str/starts-with? % man-prefix) man-nsids))))
+
+(deftest the-checked-in-vitest-no-longer-asserts-a-falsehood
+  ;; `actor-manifest.test.ts` は package.json も vitest も無いので走らない。
+  ;; 走らないテストは黙って嘘になる（実際 pipeline を 8 と書いていた。実体は 10）。
+  ;; **走らせられないなら、せめて数が drift したら赤くなるようにする。**
+  (let [ts (fs/readFileSync "actor-manifest.test.ts" "utf8")
+        n (some-> (re-find #"expect\(m\.pipelines\)\.toHaveLength\((\d+)\)" ts) second js/parseInt)]
+    (is (some? n) "vitest の pipeline 数の主張が読み取れる")
+    (is (= (count pipelines) n)
+        "vitest が主張する pipeline 数が実体と一致する")))
+
+(deftest migration-todo-is-still-untouched
+  ;; **作業せずにチェックを埋めると赤くなる。** 埋めたなら測り直すのが筋。
+  (let [md (fs/readFileSync "MIGRATION-TODO.md" "utf8")]
+    (is (= (:migration-todo-unchecked census) (count (re-seq #"(?m)^- \[ \]" md))))
+    (is (= (:migration-todo-checked census) (count (re-seq #"(?m)^- \[x\]" md))))))

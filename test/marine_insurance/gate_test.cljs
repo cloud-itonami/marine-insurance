@@ -1,0 +1,95 @@
+(ns marine_insurance.gate-test
+  "`src/marine_insurance/murakumo.cljc` の deny-by-default gate を、
+   **緩む方向と きつくなる方向の両方から** 押す。
+
+   緩む方向だけ見ていると『事故に見えない事故』を取り逃がす —— attestation の
+   受け口が 1 形だけ壊れると、その形で attest している呼び出し側だけが黙って
+   全部 blocked になる。安全側に倒れるので誰も気づかない。"
+  (:require [clojure.test :refer [deftest is testing]]
+            [marine_insurance.murakumo :as mk]))
+
+(def all-gates (into #{} mk/common-gates))
+
+(deftest no-attestation-never-produces-an-effect
+  (doseq [cell (keys mk/cell-specs)]
+    (let [plan (mk/cell-plan cell {:attestations {}})]
+      (is (= :blocked (:status plan)) (str cell " は無 attest で blocked"))
+      (is (empty? (:effects plan)) (str cell " は無 attest で effect を出さない"))
+      (is (= 7 (count (:missing-gates plan))) (str cell " は 7 本すべてを missing と報告する")))))
+
+(deftest removing-any-single-required-gate-blocks-the-plan
+  ;; 7 本は AND。`every?`/`some` の取り違えで OR になっても、無 attest では
+  ;; 依然 blocked なので素朴な検査は素通りする。1 本ずつ抜いて確かめる。
+  (doseq [missing mk/common-gates]
+    (let [attested (disj all-gates missing)
+          plan (mk/cell-plan :health {:attestations attested})]
+      (is (= :blocked (:status plan)) (str missing " が欠けたら blocked"))
+      (is (= [missing] (:missing-gates plan)))
+      (is (empty? (:effects plan))))))
+
+(deftest all-seven-gates-produce-a-ready-plan
+  (let [plan (mk/cell-plan :health {:attestations all-gates :request-id "req-1"})]
+    (is (= :ready (:status plan)))
+    (is (empty? (:missing-gates plan)))
+    (is (= 1 (count (:effects plan))))))
+
+(deftest an-attestation-that-is-explicitly-false-does-not-count-as-attested
+  ;; **この suite で一番静かな壊れ方。** `contains?` で実装すると
+  ;; `{:no-probing-baseline false}` が「attest 済み」になる —— false は
+  ;; 「測ったうえで満たしていない」という最も強い否定なのに、キーがあるだけで通る。
+  (let [attested (assoc (zipmap mk/common-gates (repeat true))
+                        :no-probing-baseline false)
+        plan (mk/cell-plan :health {:attestations attested})]
+    (is (= :blocked (:status plan)))
+    (is (= [:no-probing-baseline] (:missing-gates plan)))))
+
+(deftest every-attestation-shape-is-accepted
+  ;; 4 形。1 つ落ちると、その形で attest している呼び出し側**だけ**が全 blocked。
+  (doseq [[label attested] [[:set-of-keywords all-gates]
+                            [:keyword-map (zipmap mk/common-gates (repeat true))]
+                            [:string-map (zipmap (map name mk/common-gates) (repeat true))]
+                            [:set-of-strings (into #{} (map name mk/common-gates))]]]
+    (testing (str label)
+      (let [plan (mk/cell-plan :health {:attestations attested :request-id "r"})]
+        (is (= :ready (:status plan)) (str label " が :ready にならない"))))))
+
+(deftest blocked-plans-do-not-carry-records
+  ;; 『plan は作るが実行しない』形にすると、blocked でも計算済みの record が
+  ;; 手前に置かれる。`:effects` だけ見て安心した呼び出し側が `:records` を
+  ;; 拾って書ける —— gate を通っていない書き込みが gate の出力から作れてしまう。
+  (let [plan (mk/cell-plan :health {:attestations {} :record {:x 1}})]
+    (is (= :blocked (:status plan)))
+    (is (nil? (:records plan)) "blocked な plan は :records を持ち歩かない")))
+
+(deftest effects-are-attributed-to-this-actor
+  (let [plan (mk/cell-plan :health {:attestations all-gates :request-id "r"})]
+    (doseq [e (:effects plan)]
+      (is (= mk/actor-did (:actor e)) "effect は他 actor に帰属しない")
+      (is (= :mst/put-record (:op e))))))
+
+(deftest effects-only-target-declared-collections
+  (doseq [[cell spec] mk/cell-specs]
+    (let [plan (mk/cell-plan cell {:attestations all-gates :request-id "r"})]
+      (is (= (set (:collections spec)) (set (map :collection (:effects plan))))
+          (str cell " は宣言外の collection に書かない")))))
+
+(deftest unknown-cells-throw-rather-than-plan-nothing
+  ;; 静かに no-op になると、typo した cell 名が「何も書かなかった」ではなく
+  ;; 「書いたつもりで書いていない」になる。
+  (is (thrown? js/Error (mk/cell-plan :no-such-cell {:attestations all-gates}))))
+
+(deftest safe-rkey-does-not-emit-path-separators-or-blanks
+  (is (= "a.example-b" (mk/safe-rkey "did:web:a.example/b"))
+      "did:web: 接頭辞は落ち、`/` と `:` は残らない")
+  (is (= "unknown" (mk/safe-rkey "")))
+  ;; 記号だけの入力は "unknown" ではなく "---" になる（置換が先、blank 判定が後）。
+  ;; 実測して固定しているだけで、望ましい形とは限らない —— rkey 衝突の芽である。
+  (is (= "---" (mk/safe-rkey "///")))
+  (doseq [s ["" "///" "did:web:x.example" "a b/c:d"]]
+    (is (not (re-find #"[/:]" (mk/safe-rkey s))) (str s " が区切り文字を残さない"))
+    (is (seq (mk/safe-rkey s)) (str s " が空 rkey にならない"))))
+
+(deftest all-cell-plans-covers-every-cell-and-blocks-them-all
+  (let [plans (mk/all-cell-plans {:attestations {}})]
+    (is (= (set (keys mk/cell-specs)) (set (keys plans))))
+    (is (every? #(= :blocked (:status %)) (vals plans)))))
