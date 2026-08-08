@@ -11,13 +11,18 @@
 ## 1. 取得する
 
 ```bash
-west update --fetch smart marine-insurance
-cd orgs/cloud-itonami/marine-insurance
+git clone git@github.com:cloud-itonami/marine-insurance.git
+cd marine-insurance
 ```
 
-west を使わないなら `git clone git@github.com:cloud-itonami/marine-insurance` でよい。
-なお **remote 名は `origin` ではなく `cloud-itonami`**（west が付ける名前）なので、
-west 経由の checkout で `git fetch origin` は通らない。
+**ここに書いてあるのは素の `git clone` の方**である —— 空の clone から step 2 まで
+通して実際に確かめた手順だから。`west` は workspace の道具であって、この repo 単体を
+確かめるのに要らない。
+
+west workspace の中なら、代わりに `west update --fetch smart marine-insurance` で
+manifest の pin に合わせてもよい（`orgs/cloud-itonami/marine-insurance` に展開される）。
+その場合 **remote 名は `origin` ではなく `cloud-itonami`**（west が付ける名前）なので、
+`git fetch origin` は通らない。
 
 ## 2. 構造・gate・固定値・文書を検査する（network 不要）
 
