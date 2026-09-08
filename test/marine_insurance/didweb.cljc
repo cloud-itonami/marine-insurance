@@ -8,7 +8,7 @@
    W3C did:web:
      did:web:HOST         -> https://HOST/.well-known/did.json
      did:web:HOST:a:b     -> https://HOST/a/b/did.json"
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (defn did->url
   [did]
