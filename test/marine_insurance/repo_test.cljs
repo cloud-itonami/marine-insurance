@@ -6,7 +6,7 @@
    増えていた」は「減っていた」と同じくらい知りたい。"
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.edn :as edn]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [marine_insurance.murakumo :as mk]
             [marine_insurance.didweb :as didweb]
             ["node:fs" :as fs]))
