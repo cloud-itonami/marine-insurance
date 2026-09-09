@@ -8,7 +8,7 @@
    ここが赤くなったら、多くの場合バグではなく『文書が実体から離れた』である。"
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.edn :as edn]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [marine_insurance.murakumo :as mk]
             ["node:fs" :as fs]))
 
@@ -127,9 +127,22 @@
    `str/includes?` だと `…marine-insurance` が `…marine-insurance-x` にも当たり、
    DID をすり替えても緑のままになる（実測）。後続文字で境界を切る。"
   [md s]
-  (boolean (re-find (re-pattern (str (str/replace s #"([.+*?\[\]^$(){}|\\])" "\\$1")
+  (boolean (re-find (re-pattern (str (str/re-quote s)
                                      "(?![A-Za-z0-9._-])"))
                     md)))
+
+(deftest mentions-token-treats-the-token-as-literal-text
+  ;; `mentions-token?` の引数は DID で、DID は `.` を含む。`.` を quote しないと
+  ;; 正規表現のワイルドカードとして残り、**1 文字だけ違う DID にも当たる**。
+  ;; 上の deftest はこれを区別しない —— quote を丸ごと外しても 38 tests /
+  ;; 275 assertions は緑のままだった（実測 2026-09-09）。当たるべき側しか
+  ;; 見ていないから。落ちるべき側をここで置く。
+  (let [did "did:web:marine-insurance.itonami.cloud"]
+    (is (mentions-token? (str "see " did " for details") did))
+    (is (not (mentions-token? (str "see " (str/replace did "." "X") " for details") did))
+        "`.` がワイルドカードのまま残っている")
+    ;; 語境界の側も、この test が両方向を持つように 1 つ
+    (is (not (mentions-token? (str did "-staging") did)))))
 
 (deftest the-readme-carries-both-dids-and-says-which-one-resolves
   (doseq [{:keys [did]} (:identities claims)]
