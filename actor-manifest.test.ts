@@ -15,7 +15,7 @@ describe("Marine Insurance Actor Manifest", () => {
   it("no fn:custom", () => { for (const p of m.pipelines) for (const s of p.steps) expect(s.fn).not.toBe("custom"); });
   // 2026-08-09: 8 と書かれていたが実体は 10 だった。この file は package.json も
   // vitest も無いので一度も走っておらず、嘘が黙って残っていた。数の drift は
-  // run_tests.cljs（nbb）側が検査する — docs/adr/0001 参照。
+  // run_tests.cljk（nbb）側が検査する — docs/adr/0001 参照。
   it("10 pipelines", () => { expect(m.pipelines).toHaveLength(10); });
   it("every step has id/fn/args", () => { for (const p of m.pipelines) for (const s of p.steps) { expect(s.id).toBeDefined(); expect(s.fn).toBeDefined(); expect(s.args).toBeDefined(); } });
   it("weekly cron (Monday 08:00): portfolio→claims→expiring→analyze→social", () => {
