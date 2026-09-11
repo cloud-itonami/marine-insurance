@@ -34,8 +34,8 @@ snapshot で、codemod は未着手（`MIGRATION-TODO.md` の 6 項目は全部 
 散文ではなく実行で確かめられる。
 
 ```bash
-nbb --classpath src:test run_tests.cljk             # 構造・gate・固定値（network 不要）
-nbb --classpath src:test run_tests.cljk --network   # 上記 + 名乗りを実際に解決しに行く
+kbb --backend sci --classpath src:test run_tests.cljk             # 構造・gate・固定値（network 不要）
+kbb --backend sci --classpath src:test run_tests.cljk --network   # 上記 + 名乗りを実際に解決しに行く
 ```
 
 最後に `marine-insurance actor: all green` が出れば緑。手順は
