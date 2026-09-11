@@ -14,7 +14,7 @@
 
 (def readme (fs/readFileSync "README.md" "utf8"))
 (def quickstart (fs/readFileSync "docs/operator-quickstart.md" "utf8"))
-(def runner (fs/readFileSync "run_tests.cljs" "utf8"))
+(def runner (fs/readFileSync "run_tests.cljk" "utf8"))
 (def claims (edn/read-string (fs/readFileSync "docs/identity-claims.edn" "utf8")))
 (def census (:census claims))
 (def manifest (js->clj (js/JSON.parse (fs/readFileSync "actor-manifest.jsonld" "utf8"))))
@@ -78,10 +78,10 @@
     (doseq [cp cps
             entry (str/split cp #":")]
       (is (exists? entry) (str "classpath の要素が存在しない: " entry " (in " cp ")"))))
-  (is (str/includes? quickstart "run_tests.cljs"))
-  (is (exists? "run_tests.cljs"))
-  (is (exists? "src/marine_insurance/murakumo.cljc"))
-  (is (exists? "test/marine_insurance/gate_test.cljs")))
+  (is (str/includes? quickstart "run_tests.cljk"))
+  (is (exists? "run_tests.cljk"))
+  (is (exists? "src/marine_insurance/murakumo.cljk"))
+  (is (exists? "test/marine_insurance/gate_test.cljk")))
 
 (deftest the-green-marker-in-the-docs-is-the-runner-s-marker
   ;; 「これが出れば緑」と書いた文字列が runner の出す文字列と違ったら、

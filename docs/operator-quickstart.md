@@ -27,7 +27,7 @@ manifest の pin に合わせてもよい（`orgs/cloud-itonami/marine-insurance
 ## 2. 構造・gate・固定値・文書を検査する（network 不要）
 
 ```bash
-nbb --classpath src:test run_tests.cljs
+nbb --classpath src:test run_tests.cljk
 ```
 
 最後の 3 行がこうなれば緑:
@@ -62,7 +62,7 @@ marine-insurance actor: all green
 ## 3. 名乗りを実際に解決しに行く
 
 ```bash
-nbb --classpath src:test run_tests.cljs --network
+nbb --classpath src:test run_tests.cljk --network
 ```
 
 `mode: offline + network` になる。curl で各 DID / 配信面を引き、
@@ -120,7 +120,7 @@ data であって、それを実行する者はこの repo に居ない。
 
 - **`actor-manifest.test.ts` を走らせようとしない。** `package.json` も vitest も
   無いので走らない。走らせるために依存を足すと、この repo は「install する物が無い」
-  という性質を失う。数の drift は `run_tests.cljs` 側が見ている。
+  という性質を失う。数の drift は `run_tests.cljk` 側が見ている。
 - **`.well-known/did.json` を編集して「直った」としない。** live DID document の
   source ではない。ここを変えても配信は変わらない。
 - **`MIGRATION-TODO.md` のチェックを、作業せずに埋めない。**

@@ -9,7 +9,7 @@
 
 `marine-insurance` は 2026-05-21 に etzhayyim monorepo の
 `20-actors/marine-insurance` から descriptor だけを写した snapshot である。
-2026-07-18 の rescue commit（PR #1）で `src/marine_insurance/murakumo.cljc` が
+2026-07-18 の rescue commit（PR #1）で `src/marine_insurance/murakumo.cljk` が
 入ったが、**走るテストは 1 本も無く、README も無かった。**
 
 名前（`marine-insurance`）は主題を言うが、この repo が「海上保険を処理する実装」
@@ -44,11 +44,11 @@
 
 1. **この repo を「descriptor + gate」と名乗る。** README の冒頭で、何が在って何が
    無いかを表で示す。`runtime` / `edge` の宣言はここに実体が無いと明記する。
-2. **走る検査を持つ。** runner は `run_tests.cljs`（nbb + `cljs.test`）。workspace の
+2. **走る検査を持つ。** runner は `run_tests.cljk`（nbb + `cljs.test`）。workspace の
    規則で script host は nbb に一本化されており、新規の `.ts` / `.mjs` / `.sh` は
    禁止なので、**新しい harness を TypeScript では書かない。**
 3. **`actor-manifest.test.ts` は削除せず、数だけ実体に合わせる。** そのうえで
-   `run_tests.cljs` が「`.ts` が主張する pipeline 数 == 実体」を検査する ——
+   `run_tests.cljk` が「`.ts` が主張する pipeline 数 == 実体」を検査する ——
    **走らないファイルを、走るファイルから縛る。** 二重実装（mirror）にしないため、
    `.ts` の他の assertion は nbb 側に写さない。
 4. **測ったが直していないことは `docs/identity-claims.edn` の `:gaps` に固定する。**

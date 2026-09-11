@@ -13,7 +13,7 @@ manifest も名乗っていない**）
 | | ここにあるか |
 |---|---|
 | actor が**何を名乗り、何を要求し、どの pipeline を持つと宣言しているか** | **ある**（`actor-manifest.jsonld` / `.well-known/did.json`） |
-| **gate**（attestation が揃わなければ effect を 1 つも出さない判断） | **ある**（`src/marine_insurance/murakumo.cljc`、240 行） |
+| **gate**（attestation が揃わなければ effect を 1 つも出さない判断） | **ある**（`src/marine_insurance/murakumo.cljk`、240 行） |
 | Hull & Machinery / P&I / Cargo / War Risk / General Average の実処理、graph、XRPC の実行主体 | **無い** |
 
 **ここには動くサービスは無い。** `cell-plan` が返すのは「書くとしたら何をどこに書くか」
@@ -34,15 +34,15 @@ snapshot で、codemod は未着手（`MIGRATION-TODO.md` の 6 項目は全部 
 散文ではなく実行で確かめられる。
 
 ```bash
-nbb --classpath src:test run_tests.cljs             # 構造・gate・固定値（network 不要）
-nbb --classpath src:test run_tests.cljs --network   # 上記 + 名乗りを実際に解決しに行く
+nbb --classpath src:test run_tests.cljk             # 構造・gate・固定値（network 不要）
+nbb --classpath src:test run_tests.cljk --network   # 上記 + 名乗りを実際に解決しに行く
 ```
 
 最後に `marine-insurance actor: all green` が出れば緑。手順は
 [docs/operator-quickstart.md](docs/operator-quickstart.md)。
 
 **この README 自身も検査対象である。** 下に書いてある数（pipeline 10 / cell 18 /
-gate 7）と 2 つの DID は `test/marine_insurance/docs_test.cljs` が実体と突き合わせるので、
+gate 7）と 2 つの DID は `test/marine_insurance/docs_test.cljk` が実体と突き合わせるので、
 実体が動けば README が赤くなる。quickstart が名指しする `.cljs` の実在も同じ場所で
 守っている —— **踏めない手順を書けない**ようにするため。
 
@@ -50,12 +50,12 @@ gate 7）と 2 つの DID は `test/marine_insurance/docs_test.cljs` が実体�
 
 | ファイル | 役割 |
 |---|---|
-| `src/marine_insurance/murakumo.cljc` | **この repo で唯一 substrate と呼べるもの。** 18 cell × 7 gate の deny-by-default 判断 |
+| `src/marine_insurance/murakumo.cljk` | **この repo で唯一 substrate と呼べるもの。** 18 cell × 7 gate の deny-by-default 判断 |
 | `actor-manifest.jsonld` | actor 宣言。10 pipeline（cron 2 / subscribeRepos 1 / xrpc 7）、6 sub-actor、5 capability |
 | `.well-known/did.json` | DID document。**配信されていない**（Pages 404）し、live 文書とも中身が違う |
 | `docs/identity-claims.edn` | 下の表の**実測値を固定したもの**。test の期待値 |
 | `test/` | gate（緩む方向 / きつくなる方向の両方）・descriptor 本体・文書・network 実測 |
-| `run_tests.cljs` | 上記の runner。nbb + `cljs.test` |
+| `run_tests.cljk` | 上記の runner。nbb + `cljs.test` |
 | `actor-manifest.test.ts` | **走らない**（`package.json` も vitest も無い）。下記 |
 
 ## gate は何を止めるのか
@@ -88,7 +88,7 @@ keyword map / string map / string の set）すべてを受ける —— どれ�
 | **手元の `did.json` は配信文書ではない** | 配信側とは `@context` の suite・`alsoKnownAs`（手元 4 件 / 配信 0 件）・PDS endpoint・service の顔ぶれ・`_meta` の有無が違う。**ここを編集しても配信は変わらない** |
 | **Pages の鏡は 404** | `alsoKnownAs` が名乗る `etzhayyim.github.io/com-etzhayyim-marine-insurance` は配信されていない |
 | **`agent.invoke` は宣言だけ** | capability 5 個を宣言し、pipeline step が実際に使うのは 4 個。`agent.invoke` はどの step の `fn` にも現れない |
-| **`actor-manifest.test.ts` は嘘をついていた** | `pipelines` を 8 と主張。実体は 10。`package.json` が無く vitest も入っていないので**一度も走ったことがない**。数だけ実体に合わせ、drift したら `run_tests.cljs` 側が赤くなるようにした |
+| **`actor-manifest.test.ts` は嘘をついていた** | `pipelines` を 8 と主張。実体は 10。`package.json` が無く vitest も入っていないので**一度も走ったことがない**。数だけ実体に合わせ、drift したら `run_tests.cljk` 側が赤くなるようにした |
 | **lexicon が交差しない** | substrate は `com.etzhayyim.marine-insurance.*` に書き、manifest の xrpc は `com.etzhayyim.apps.marineInsurance.*`。交差 **0**。揃える先は **substrate 側** —— 配信されている DID document の `_meta.primaryLexicon` が `com.etzhayyim.marine-insurance` だからである |
 | **codemod 未着手** | `MIGRATION-TODO.md` の 6 項目が全部 `[ ]` |
 
