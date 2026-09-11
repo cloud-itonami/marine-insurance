@@ -27,7 +27,7 @@ manifest の pin に合わせてもよい（`orgs/cloud-itonami/marine-insurance
 ## 2. 構造・gate・固定値・文書を検査する（network 不要）
 
 ```bash
-nbb --classpath src:test run_tests.cljk
+kbb --backend sci --classpath src:test run_tests.cljk
 ```
 
 最後の 3 行がこうなれば緑:
@@ -62,7 +62,7 @@ marine-insurance actor: all green
 ## 3. 名乗りを実際に解決しに行く
 
 ```bash
-nbb --classpath src:test run_tests.cljk --network
+kbb --backend sci --classpath src:test run_tests.cljk --network
 ```
 
 `mode: offline + network` になる。curl で各 DID / 配信面を引き、
@@ -79,7 +79,7 @@ superproject 側の mutation runner が、**壊して赤くなること**を確�
 
 ```bash
 cd <superproject root>
-nbb scripts/maturity-loop/run.cljs --only marine-insurance
+kbb --backend sci scripts/maturity-loop/run.cljk --only marine-insurance
 ```
 
 使い捨て worktree を west の pin から切って壊すので、**共有 checkout には触れない**。
@@ -89,7 +89,7 @@ nbb scripts/maturity-loop/run.cljs --only marine-insurance
 ## 5. gate を手で撃ってみる（任意・5 秒）
 
 ```bash
-nbb --classpath src -e '(require (quote [marine_insurance.murakumo :as m]))
+kbb --backend sci --classpath src -e '(require (quote [marine_insurance.murakumo :as m]))
   (let [blocked (m/cell-plan :getvesselcoverage {:attestations {}})
         ready   (m/cell-plan :getvesselcoverage {:attestations (into #{} m/common-gates) :request-id "req-1"})]
     (println "blocked:" (:status blocked) "effects" (count (:effects blocked)) "missing" (count (:missing-gates blocked)))

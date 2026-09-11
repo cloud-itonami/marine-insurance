@@ -1,8 +1,8 @@
-#!/usr/bin/env nbb
+#!/usr/bin/env kbb
 ;; run_tests.cljk — marine-insurance actor の検査。
 ;;
-;;   nbb --classpath src:test run_tests.cljk             gate + descriptor + 文書（network 不要）
-;;   nbb --classpath src:test run_tests.cljk --network   名乗りを実際に解決しに行く
+;;   kbb --backend sci --classpath src:test run_tests.cljk             gate + descriptor + 文書（network 不要）
+;;   kbb --backend sci --classpath src:test run_tests.cljk --network   名乗りを実際に解決しに行く
 ;;
 ;; この repo は 2026-05 の snapshot 以来、**走るテストを 1 本も持っていなかった。**
 ;; `actor-manifest.test.ts` は在るが `package.json` も vitest も無いので実行できず、
