@@ -4,7 +4,7 @@
 
    **緑は「健全」ではない。** この repo の identity は割れており、割れていること
    自体が固定値である。緑は『実測が固定値と一致した』としか言っていない。"
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [clojure.edn :as edn]
             [marine_insurance.didweb :as didweb]
             ["node:child_process" :as cp]
