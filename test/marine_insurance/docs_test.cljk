@@ -6,7 +6,7 @@
    突き合わせ、**踏めない手順を書けないようにする**。
 
    ここが赤くなったら、多くの場合バグではなく『文書が実体から離れた』である。"
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [clojure.edn :as edn]
             [kotoba.lang.text :as str]
             [marine_insurance.murakumo :as mk]

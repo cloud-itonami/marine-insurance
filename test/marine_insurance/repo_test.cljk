@@ -4,7 +4,7 @@
 
    count は**両方向に**落ちる。増えても減っても赤 —— 「いつの間にか pipeline が
    増えていた」は「減っていた」と同じくらい知りたい。"
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [clojure.edn :as edn]
             [kotoba.lang.text :as str]
             [marine_insurance.murakumo :as mk]
