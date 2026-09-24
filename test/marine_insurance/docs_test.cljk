@@ -7,7 +7,7 @@
 
    ここが赤くなったら、多くの場合バグではなく『文書が実体から離れた』である。"
   (:require [kotoba.test :refer [deftest is testing]]
-            [clojure.edn :as edn]
+            [kotoba.lang.edn :as edn]
             [kotoba.lang.text :as str]
             [marine_insurance.murakumo :as mk]
             ["node:fs" :as fs]))
