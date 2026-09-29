@@ -32,7 +32,7 @@
        distinct))
 
 (deftest readme-names-what-this-repo-is-in-its-opening
-  ;; 名前が機能を示さない repo は README 冒頭で名乗る（superproject CLAUDE.md）。
+  ;; 名前が機能を示さない repo は README 冒頭で名乗る（superproject AGENTS.md）。
   ;; `marine-insurance` は主題を言うが「実装なのか descriptor なのか」を言わない。
   (let [head (str/join "\n" (take 8 (str/split-lines readme)))]
     (is (str/starts-with? readme "# marine-insurance"))
